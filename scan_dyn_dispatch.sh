@@ -27,7 +27,8 @@
 #
 # Options:
 #   -t DIR      Path to gentoo tree (sparse clone created here if missing). Default: ./gentoo-tree
-#   -o DIR      Output directory for reports/cache. Default: ./report
+#   -o DIR      Output directory for reports/cache. Default: ./report, or
+#               ./report_<slugified -p value> if -p is given without -o.
 #   -c DIR      Crate download/extract cache. Default: ./crates-cache
 #   -u DIR      Upstream package source download/extract cache. Default: ./upstream-cache
 #   -n NUM      Limit to first NUM unique crates (0 = no limit). Default: 0
@@ -46,6 +47,7 @@ set -u
 
 TREE_DIR="./gentoo-tree"
 OUT_DIR="./report"
+OUT_DIR_EXPLICIT=0
 CACHE_DIR="./.crates-cache"
 UPSTREAM_CACHE_DIR="./.upstream-cache"
 LIMIT=0
@@ -55,7 +57,7 @@ PKG_PREFIX=""
 while getopts "t:o:c:u:n:j:p:h" opt; do
   case "$opt" in
     t) TREE_DIR="$OPTARG" ;;
-    o) OUT_DIR="$OPTARG" ;;
+    o) OUT_DIR="$OPTARG"; OUT_DIR_EXPLICIT=1 ;;
     c) CACHE_DIR="$OPTARG" ;;
     u) UPSTREAM_CACHE_DIR="$OPTARG" ;;
     n) LIMIT="$OPTARG" ;;
@@ -66,16 +68,25 @@ while getopts "t:o:c:u:n:j:p:h" opt; do
   esac
 done
 
+# If a category/package prefix was given via -p but no explicit -o, name the
+# output dir after the prefix instead of the generic "./report" — makes it
+# obvious which run produced which directory when scanning multiple
+# categories, and avoids one run's report silently overwriting another's.
+if [ -n "$PKG_PREFIX" ] && [ "$OUT_DIR_EXPLICIT" -eq 0 ]; then
+  SLUG=$(printf '%s' "$PKG_PREFIX" | sed -e 's#/*$##' -e 's#[/ ]#-#g')
+  OUT_DIR="./report_${SLUG}"
+fi
+
 # WORK_DIR holds intermediate/scratch files that exist purely to pass data
-# between steps of this script — not meant to be read directly. The three
-# real deliverables (report.tsv, packages_with_dyn_dispatch.tsv,
-# packages_by_size.tsv) live directly in $OUT_DIR.
+# between steps of this script — not meant to be read directly. The single
+# real deliverable (report.tsv, the package-by-size ranking with dyn-dispatch
+# split) lives directly in $OUT_DIR.
 WORK_DIR="$OUT_DIR/.work"
 mkdir -p "$OUT_DIR" "$WORK_DIR" "$CACHE_DIR" "$UPSTREAM_CACHE_DIR"
-MAP_FILE="$WORK_DIR/ebuild_crate_map.tsv"     # ebuild_path \t crate_name \t crate_version
-CRATES_FILE="$WORK_DIR/unique_crates.txt"     # name@version, deduped
-RESULTS_FILE="$WORK_DIR/dyn_results.tsv"      # crate \t version \t dyn_count \t sample
-FINAL_REPORT="$OUT_DIR/report.tsv"            # joined, human-facing report (deliverable)
+MAP_FILE="$WORK_DIR/ebuild_crate_map.tsv"                     # ebuild_path \t crate_name \t crate_version
+CRATES_FILE="$WORK_DIR/unique_crates.txt"                     # name@version, deduped
+RESULTS_FILE="$WORK_DIR/dyn_results.tsv"                       # crate \t version \t dyn_count \t sample
+FINAL_REPORT="$WORK_DIR/dependency_dynamic_dispatches.tsv"    # per (ebuild, dependency-crate) detail
 
 log() { echo "[scan] $*" >&2; }
 
@@ -195,13 +206,15 @@ log "Building final report..."
 rm -f "$FINAL_REPORT.body"
 
 HITS=$(($(wc -l < "$FINAL_REPORT") - 1))
-log "Done. $HITS (ebuild, crate) pairs use dynamic dispatch. Full report: $FINAL_REPORT"
+log "Done. $HITS (ebuild, crate) pairs use dynamic dispatch. Detail (intermediate): $FINAL_REPORT"
 
 # --- Step 6: roll up to top-level packages ---
-# report.tsv is per (ebuild, dependency-crate) — useful for detail, but what
-# you usually want is "which top-level binaries does this affect at all,
-# even transitively". Collapse to one row per package.
-PACKAGES_FILE="$OUT_DIR/packages_with_dyn_dispatch.tsv"
+# dependency_dynamic_dispatches.tsv is per (ebuild, dependency-crate) — useful
+# as intermediate detail, but what you usually want is "which top-level
+# binaries does this affect at all, even transitively". Collapse to one row
+# per package. (This rollup is itself still intermediate — it gets merged
+# into the final report.tsv below, alongside own-code dyn-dispatch data.)
+PACKAGES_FILE="$WORK_DIR/packages_with_dyn_dispatch.tsv"
 log "Rolling up to top-level packages..."
 awk -F'\t' 'NR>1 {
     ebuild=$1; crate=$2; ver=$3; cnt=$4;
@@ -222,7 +235,7 @@ rm -f "$PACKAGES_FILE.body"
 
 PKG_COUNT=$(($(wc -l < "$PACKAGES_FILE") - 1))
 log "$PKG_COUNT top-level package(s) use dynamic dispatch somewhere in their dependency tree."
-log "Package summary: $PACKAGES_FILE"
+log "Package summary (intermediate): $PACKAGES_FILE"
 log ""
 awk -F'\t' 'NR==1{printf "  %-40s %-12s %-10s %s\n", "PACKAGE", "#CRATES", "HITS", "CRATES (name@version)"; next} {printf "  %-40s %-12s %-10s %s\n", $1, $3, $4, $5}' "$PACKAGES_FILE" >&2
 
@@ -237,7 +250,7 @@ head -n 11 "$FINAL_REPORT" | awk -F'\t' '{printf "  %-45s %-25s %-10s %s\n", $2,
 # of Rust code in it directly, excluding any vendored/target dirs. This
 # covers every cargo-based package found in this run, not just the ones
 # with dyn-dispatch hits, so you can rank by size independent of that.
-SIZE_FILE="$OUT_DIR/packages_by_size.tsv"
+SIZE_FILE="$OUT_DIR/report.tsv"
 log ""
 log "Fetching upstream source per package to measure own lines of Rust code..."
 

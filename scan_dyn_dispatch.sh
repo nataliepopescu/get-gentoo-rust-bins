@@ -46,8 +46,8 @@ set -u
 
 TREE_DIR="./gentoo-tree"
 OUT_DIR="./report"
-CACHE_DIR="./crates-cache"
-UPSTREAM_CACHE_DIR="./upstream-cache"
+CACHE_DIR="./.crates-cache"
+UPSTREAM_CACHE_DIR="./.upstream-cache"
 LIMIT=0
 JOBS=8
 PKG_PREFIX=""
@@ -66,11 +66,16 @@ while getopts "t:o:c:u:n:j:p:h" opt; do
   esac
 done
 
-mkdir -p "$OUT_DIR" "$CACHE_DIR" "$UPSTREAM_CACHE_DIR"
-MAP_FILE="$OUT_DIR/ebuild_crate_map.tsv"      # ebuild_path \t crate_name \t crate_version
-CRATES_FILE="$OUT_DIR/unique_crates.txt"      # name@version, deduped
-RESULTS_FILE="$OUT_DIR/dyn_results.tsv"       # crate \t version \t dyn_count \t sample
-FINAL_REPORT="$OUT_DIR/report.tsv"            # joined, human-facing report
+# WORK_DIR holds intermediate/scratch files that exist purely to pass data
+# between steps of this script — not meant to be read directly. The three
+# real deliverables (report.tsv, packages_with_dyn_dispatch.tsv,
+# packages_by_size.tsv) live directly in $OUT_DIR.
+WORK_DIR="$OUT_DIR/.work"
+mkdir -p "$OUT_DIR" "$WORK_DIR" "$CACHE_DIR" "$UPSTREAM_CACHE_DIR"
+MAP_FILE="$WORK_DIR/ebuild_crate_map.tsv"     # ebuild_path \t crate_name \t crate_version
+CRATES_FILE="$WORK_DIR/unique_crates.txt"     # name@version, deduped
+RESULTS_FILE="$WORK_DIR/dyn_results.tsv"      # crate \t version \t dyn_count \t sample
+FINAL_REPORT="$OUT_DIR/report.tsv"            # joined, human-facing report (deliverable)
 
 log() { echo "[scan] $*" >&2; }
 
@@ -151,7 +156,7 @@ process_crate() {
     fi
   done < <(find "$crate_dir" -name "*.rs" -print0 2>/dev/null)
   count=$(printf '%s\n' "$matches" | grep -c . || true)
-  sample=$(printf '%s\n' "$matches" | head -3 | tr '\n' '|' | sed 's/\t/ /g')
+  sample=$(printf '%s\n' "$matches" | head -3 | tr -d '\r' | tr '\n' '|' | sed -e 's/\t/ /g' -e 's/"//g')
 
   echo "${name}	${ver}	${count}	${sample}"
 }
@@ -318,15 +323,15 @@ fetch_and_count_loc() {
     fi
   done < <(find "$extract_dir" -name "*.rs" -not -path "*/vendor/*" -not -path "*/target/*" -print0 2>/dev/null)
   own_dyn_count=$(printf '%s\n' "$own_matches" | grep -c . || true)
-  own_dyn_sample=$(printf '%s\n' "$own_matches" | head -3 | tr '\n' '|' | sed 's/\t/ /g')
+  own_dyn_sample=$(printf '%s\n' "$own_matches" | head -3 | tr -d '\r' | tr '\n' '|' | sed -e 's/\t/ /g' -e 's/"//g')
 
   echo -e "${pn}\t${pv}\t${ebuild}\tOK\t${loc}\t${own_dyn_count}\t${own_dyn_sample}"
 }
 export -f fetch_and_count_loc
 
-cut -f1 "$MAP_FILE" | sort -u > "$OUT_DIR/unique_ebuilds.txt"
-LOC_RESULTS="$OUT_DIR/loc_results.tsv"
-xargs -a "$OUT_DIR/unique_ebuilds.txt" -P "$JOBS" -I{} bash -c 'fetch_and_count_loc "$1" "$2"' _ {} "$UPSTREAM_CACHE_DIR" > "$LOC_RESULTS"
+cut -f1 "$MAP_FILE" | sort -u > "$WORK_DIR/unique_ebuilds.txt"
+LOC_RESULTS="$WORK_DIR/loc_results.tsv"
+xargs -a "$WORK_DIR/unique_ebuilds.txt" -P "$JOBS" -I{} bash -c 'fetch_and_count_loc "$1" "$2"' _ {} "$UPSTREAM_CACHE_DIR" > "$LOC_RESULTS"
 
 # Join with the dyn-dispatch package rollup (if a package has no dependency
 # dyn hits at all, it just won't appear in PACKAGES_FILE — treat that as 0/0).

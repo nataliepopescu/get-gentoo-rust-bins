@@ -1,0 +1,3 @@
+package	own_source_loc_rust	own_dyn_hits	dep_dyn_hits	total_dyn_hits	dep_distinct_crates_using_dyn	fetch_status	own_dyn_sample
+x11-terms/wezterm-20260616.002039	0	0	0	0	0	ERROR_DOWNLOAD(github.com)	
+x11-terms/alacritty-0.16.1	0	0	5124	5124	116	ERROR_DOWNLOAD(github.com)	

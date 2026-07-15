@@ -34,6 +34,10 @@
 #   -n NUM      Limit to first NUM unique crates (0 = no limit). Default: 0
 #   -j NUM      Parallel download/grep jobs. Default: 8
 #   -p PATTERN  Only scan ebuilds under this path prefix (e.g. media-sound/). Default: all
+#   -b          Only include packages confirmed to produce a binary (has a
+#               src/main.rs, src/bin/*.rs, or [[bin]] in Cargo.toml) in the
+#               final report — excludes library-only crates. Off by default,
+#               since the is_binary column is always present either way.
 #   -h          Show this help
 #
 # Requires: git, curl, tar, unzip, grep (GNU), xargs, awk, perl
@@ -53,8 +57,9 @@ UPSTREAM_CACHE_DIR="./.upstream-cache"
 LIMIT=0
 JOBS=8
 PKG_PREFIX=""
+BINARIES_ONLY=0
 
-while getopts "t:o:c:u:n:j:p:h" opt; do
+while getopts "t:o:c:u:n:j:p:bh" opt; do
   case "$opt" in
     t) TREE_DIR="$OPTARG" ;;
     o) OUT_DIR="$OPTARG"; OUT_DIR_EXPLICIT=1 ;;
@@ -63,6 +68,7 @@ while getopts "t:o:c:u:n:j:p:h" opt; do
     n) LIMIT="$OPTARG" ;;
     j) JOBS="$OPTARG" ;;
     p) PKG_PREFIX="$OPTARG" ;;
+    b) BINARIES_ONLY=1 ;;
     h) grep '^#' "$0" | sed 's/^#//'; exit 0 ;;
     *) echo "Unknown option"; exit 1 ;;
   esac
@@ -106,6 +112,14 @@ SEARCH_ROOT="$TREE_DIR/${PKG_PREFIX}"
 
 # Find ebuilds that inherit the cargo eclass at all (handles `inherit foo cargo bar`)
 mapfile -t CARGO_EBUILDS < <(grep -rlE '^inherit(\s+[a-zA-Z0-9_.-]+)*\s+cargo(\s|$)' --include="*.ebuild" "$SEARCH_ROOT" 2>/dev/null || true)
+
+# Record every cargo-eclass ebuild found, regardless of whether it declares
+# any CRATES entries. Some packages (e.g. ones whose deps are fetched via a
+# separate Gentoo-hosted crate-dist bundle rather than listed individually)
+# have an empty CRATES="" — those still need to reach Step 7's own-source
+# scan, so this list (not MAP_FILE) is what Step 7 iterates over.
+ALL_CARGO_EBUILDS_FILE="$WORK_DIR/all_cargo_ebuilds.txt"
+printf '%s\n' "${CARGO_EBUILDS[@]}" > "$ALL_CARGO_EBUILDS_FILE"
 
 log "Found ${#CARGO_EBUILDS[@]} cargo-based ebuilds."
 
@@ -276,12 +290,33 @@ fetch_and_count_loc() {
               | head -1)
 
   if [ -z "$raw_url" ]; then
-    echo -e "${pn}\t${pv}\t${ebuild}\tNO_SRC_URI_FOUND\t0\t0\t"
+    echo -e "${pn}\t${pv}\t${ebuild}\tNO_SRC_URI_FOUND\t0\t0\tunknown\t"
     return
   fi
 
   # Substitute the handful of ebuild variables that commonly appear in SRC_URI.
   url=$(printf '%s' "$raw_url" | sed -e "s/\${PV}/${pv}/g" -e "s/\${PN}/${pn}/g" -e "s/\${P}/${p}/g" -e "s/\${PF}/${pf}/g")
+
+  # Some ebuilds set S= to point at a specific subdirectory of the extracted
+  # archive — e.g. a package that only builds one member of an upstream
+  # cargo workspace/monorepo (dev-libs/blazesym_c is a real example: its
+  # SRC_URI ships the whole blazesym repo, which also contains an unrelated
+  # cli/ binary crate and examples/, but S="${WORKDIR}/.../capi" means only
+  # the capi/ library is actually built). Scanning the whole extracted tree
+  # in that case would wrongly attribute cli/'s main.rs or examples' dyn
+  # usage to this package. So: parse S=, strip it down to the path relative
+  # to the archive root (which --strip-components=1 below already peels
+  # off), and scope LOC/dyn/is_binary detection to that subdir if present.
+  s_line=$(grep -m1 -E '^S=' "$ebuild" 2>/dev/null)
+  scan_subdir=""
+  if [ -n "$s_line" ]; then
+    s_val=$(printf '%s' "$s_line" | sed -E 's/^S="?//; s/"$//' \
+              | sed -e "s/\${PV}/${pv}/g" -e "s/\${PN}/${pn}/g" -e "s/\${P}/${p}/g" -e "s/\${PF}/${pf}/g" -e 's#\${WORKDIR}#WORKDIR#g')
+    # Drop the WORKDIR segment and the archive's own top-level dir segment
+    # (both already collapsed away by --strip-components=1) — whatever's
+    # left is the subdir path relative to extract_dir.
+    scan_subdir=$(printf '%s' "$s_val" | awk -F'/' '{ if (NF>2) { out=""; for(i=3;i<=NF;i++){out=out (out==""?"":"/") $i}; print out } }')
+  fi
 
   domain=$(printf '%s' "$url" | sed -E 's#https?://([^/]+)/.*#\1#')
   key="${pn}-${pv}"
@@ -300,7 +335,7 @@ fetch_and_count_loc() {
     if [ ! -f "$archive_file" ]; then
       if ! curl -sfL -o "$archive_file" "$url" 2>/dev/null; then
         rm -f "$archive_file"
-        echo -e "${pn}\t${pv}\t${ebuild}\tERROR_DOWNLOAD(${domain})\t0\t0\t"
+        echo -e "${pn}\t${pv}\t${ebuild}\tERROR_DOWNLOAD(${domain})\t0\t0\tunknown\t"
         return
       fi
     fi
@@ -315,12 +350,17 @@ fetch_and_count_loc() {
       *)       ok=0 ;;
     esac
     if [ "$ok" -eq 0 ]; then
-      echo -e "${pn}\t${pv}\t${ebuild}\tERROR_EXTRACT\t0\t0\t"
+      echo -e "${pn}\t${pv}\t${ebuild}\tERROR_EXTRACT\t0\t0\tunknown\t"
       return
     fi
   fi
 
-  loc=$(find "$extract_dir" -name "*.rs" -not -path "*/vendor/*" -not -path "*/target/*" -print0 2>/dev/null \
+  scan_root="$extract_dir"
+  if [ -n "$scan_subdir" ] && [ -d "${extract_dir}/${scan_subdir}" ]; then
+    scan_root="${extract_dir}/${scan_subdir}"
+  fi
+
+  loc=$(find "$scan_root" -name "*.rs" -not -path "*/vendor/*" -not -path "*/target/*" -print0 2>/dev/null \
           | xargs -0 cat 2>/dev/null | wc -l)
 
   # Same dyn-dispatch scan as Step 4 (comment-stripped first), but run against
@@ -334,23 +374,38 @@ fetch_and_count_loc() {
       own_matches="${own_matches}$(printf '%s\n' "$file_hits" | sed "s#^#${rsfile}:#")
 "
     fi
-  done < <(find "$extract_dir" -name "*.rs" -not -path "*/vendor/*" -not -path "*/target/*" -print0 2>/dev/null)
+  done < <(find "$scan_root" -name "*.rs" -not -path "*/vendor/*" -not -path "*/target/*" -print0 2>/dev/null)
   own_dyn_count=$(printf '%s\n' "$own_matches" | grep -c . || true)
   own_dyn_sample=$(printf '%s\n' "$own_matches" | head -3 | tr -d '\r' | tr '\n' '|' | sed -e 's/\t/ /g' -e 's/"//g')
 
-  echo -e "${pn}\t${pv}\t${ebuild}\tOK\t${loc}\t${own_dyn_count}\t${own_dyn_sample}"
+  # Does this package actually produce an executable, or is it a library-only
+  # crate? A cargo-eclass ebuild can be either (or both) — the ebuild itself
+  # doesn't distinguish them, so check the actual upstream source (scoped to
+  # scan_root, so a workspace member Gentoo doesn't build isn't mistaken for
+  # part of this package): a binary target shows up as either a src/main.rs
+  # / src/bin/*.rs file, or an explicit [[bin]] table in Cargo.toml.
+  has_main=$(find "$scan_root" \( -path "*/src/main.rs" -o -path "*/src/bin/*.rs" \) \
+               -not -path "*/vendor/*" -not -path "*/target/*" -print -quit 2>/dev/null)
+  has_bin_section=$(grep -rlE '^[[:space:]]*\[\[bin\]\]' --include="Cargo.toml" "$scan_root" 2>/dev/null | head -1)
+  if [ -n "$has_main" ] || [ -n "$has_bin_section" ]; then
+    is_binary="yes"
+  else
+    is_binary="no"
+  fi
+
+  echo -e "${pn}\t${pv}\t${ebuild}\tOK\t${loc}\t${own_dyn_count}\t${is_binary}\t${own_dyn_sample}"
 }
 export -f fetch_and_count_loc
 
-cut -f1 "$MAP_FILE" | sort -u > "$WORK_DIR/unique_ebuilds.txt"
+cp "$ALL_CARGO_EBUILDS_FILE" "$WORK_DIR/unique_ebuilds.txt"
 LOC_RESULTS="$WORK_DIR/loc_results.tsv"
 xargs -a "$WORK_DIR/unique_ebuilds.txt" -P "$JOBS" -I{} bash -c 'fetch_and_count_loc "$1" "$2"' _ {} "$UPSTREAM_CACHE_DIR" > "$LOC_RESULTS"
 
 # Join with the dyn-dispatch package rollup (if a package has no dependency
 # dyn hits at all, it just won't appear in PACKAGES_FILE — treat that as 0/0).
-# Own-code hits come straight from fetch_and_count_loc above.
+# Own-code hits and is_binary come straight from fetch_and_count_loc above.
 {
-  while IFS=$'\t' read -r pn pv ebuild status loc own_dyn_count own_dyn_sample; do
+  while IFS=$'\t' read -r pn pv ebuild status loc own_dyn_count is_binary own_dyn_sample; do
     category=$(basename "$(dirname "$(dirname "$ebuild")")")
     pf=$(basename "$ebuild" .ebuild)
     pkg="${category}/${pf}"
@@ -361,16 +416,25 @@ xargs -a "$WORK_DIR/unique_ebuilds.txt" -P "$JOBS" -I{} bash -c 'fetch_and_count
     [ -z "$dep_total" ] && dep_total=0
     [ -z "$own_dyn_count" ] && own_dyn_count=0
     combined=$((own_dyn_count + dep_total))
-    echo -e "${pkg}\t${loc}\t${own_dyn_count}\t${dep_total}\t${combined}\t${dep_ncrates}\t${status}\t${own_dyn_sample}"
+    echo -e "${pkg}\t${loc}\t${is_binary}\t${own_dyn_count}\t${dep_total}\t${combined}\t${dep_ncrates}\t${status}\t${own_dyn_sample}"
   done < "$LOC_RESULTS"
 } | sort -t$'\t' -k2,2 -rn > "$SIZE_FILE.body"
-{ echo -e "package\town_source_loc_rust\town_dyn_hits\tdep_dyn_hits\ttotal_dyn_hits\tdep_distinct_crates_using_dyn\tfetch_status\town_dyn_sample"; cat "$SIZE_FILE.body"; } > "$SIZE_FILE"
+
+if [ "$BINARIES_ONLY" -eq 1 ]; then
+  TOTAL_ROWS=$(wc -l < "$SIZE_FILE.body")
+  EXCLUDED=$(awk -F'\t' '$3!="yes"' "$SIZE_FILE.body" | wc -l)
+  awk -F'\t' '$3=="yes"' "$SIZE_FILE.body" > "$SIZE_FILE.filtered"
+  mv "$SIZE_FILE.filtered" "$SIZE_FILE.body"
+  log "Filtering to binaries only (-b): excluded $EXCLUDED of $TOTAL_ROWS package(s) that are libraries, or whose upstream source couldn't be fetched to confirm either way."
+fi
+
+{ echo -e "package\town_source_loc_rust\tis_binary\town_dyn_hits\tdep_dyn_hits\ttotal_dyn_hits\tdep_distinct_crates_using_dyn\tfetch_status\town_dyn_sample"; cat "$SIZE_FILE.body"; } > "$SIZE_FILE"
 rm -f "$SIZE_FILE.body"
 
-FAILED=$(awk -F'\t' 'NR>1 && $7!="OK"' "$SIZE_FILE" | wc -l)
+FAILED=$(awk -F'\t' 'NR>1 && $8!="OK"' "$SIZE_FILE" | wc -l)
 log "Package size ranking (with own-code vs dependency dyn-dispatch split): $SIZE_FILE"
 if [ "$FAILED" -gt 0 ]; then
-  log "Note: $FAILED package(s) failed to fetch upstream source (unsupported host not in this sandbox's network allowlist, or no parseable SRC_URI). Their own_source_loc and own_dyn_hits are 0 (unmeasured, not confirmed-zero) — see fetch_status column."
+  log "Note: $FAILED package(s) failed to fetch upstream source (unsupported host not in this sandbox's network allowlist, or no parseable SRC_URI). Their own_source_loc, is_binary, and own_dyn_hits are unmeasured, not confirmed-zero/no — see fetch_status column."
 fi
 log ""
-awk -F'\t' 'NR==1{printf "  %-38s %-10s %-10s %-10s %-8s %s\n", "PACKAGE", "OWN_LOC", "OWN_DYN", "DEP_DYN", "TOTAL", "STATUS"; next} {printf "  %-38s %-10s %-10s %-10s %-8s %s\n", $1, $2, $3, $4, $5, $7}' "$SIZE_FILE" | head -11 >&2
+awk -F'\t' 'NR==1{printf "  %-38s %-10s %-9s %-10s %-10s %-8s %s\n", "PACKAGE", "OWN_LOC", "IS_BIN", "OWN_DYN", "DEP_DYN", "TOTAL", "STATUS"; next} {printf "  %-38s %-10s %-9s %-10s %-10s %-8s %s\n", $1, $2, $3, $4, $5, $6, $8}' "$SIZE_FILE" | head -11 >&2

@@ -1,3 +1,4 @@
 gentoo-tree
 .crates-cache
 .upstream-cache
+report*/.work

@@ -1,7 +1,0 @@
-package	own_source_loc_rust	own_dyn_hits	dep_dyn_hits	total_dyn_hits	dep_distinct_crates_using_dyn	fetch_status	own_dyn_sample
-app-shells/mcfly-0.5.13-r1	4366	1	74	75	6	OK	./upstream-cache/mcfly-0.5.13/src/history/history.rs:640:    fn run_query(&self, query: &str, params: &[(&str, &dyn ToSql)]) -> Vec<Command> {||
-app-shells/zoxide-0.9.9	2222	0	309	309	14	OK	|
-app-shells/zoxide-0.9.6-r1	2197	0	179	179	12	OK	|
-app-shells/zoxide-0.9.8	2193	0	309	309	14	OK	|
-app-shells/zoxide-0.9.7	2155	0	178	178	12	OK	|
-app-shells/zoxide-0.9.4-r1	2106	0	185	185	12	OK	|

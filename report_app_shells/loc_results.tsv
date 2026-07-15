@@ -1,6 +1,0 @@
-zoxide	0.9.9	./gentoo-tree/app-shells/zoxide/zoxide-0.9.9.ebuild	OK	2222	0	|
-zoxide	0.9.8	./gentoo-tree/app-shells/zoxide/zoxide-0.9.8.ebuild	OK	2193	0	|
-zoxide	0.9.4	./gentoo-tree/app-shells/zoxide/zoxide-0.9.4-r1.ebuild	OK	2106	0	|
-mcfly	0.5.13	./gentoo-tree/app-shells/mcfly/mcfly-0.5.13-r1.ebuild	OK	4366	1	./upstream-cache/mcfly-0.5.13/src/history/history.rs:640:    fn run_query(&self, query: &str, params: &[(&str, &dyn ToSql)]) -> Vec<Command> {||
-zoxide	0.9.7	./gentoo-tree/app-shells/zoxide/zoxide-0.9.7.ebuild	OK	2155	0	|
-zoxide	0.9.6	./gentoo-tree/app-shells/zoxide/zoxide-0.9.6-r1.ebuild	OK	2197	0	|

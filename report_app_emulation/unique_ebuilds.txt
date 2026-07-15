@@ -1,4 +1,0 @@
-./gentoo-tree/app-emulation/virtiofsd/virtiofsd-1.13.1.ebuild
-./gentoo-tree/app-emulation/virtiofsd/virtiofsd-1.13.2.ebuild
-./gentoo-tree/app-emulation/virtiofsd/virtiofsd-1.13.3.ebuild
-./gentoo-tree/app-emulation/virtiofsd/virtiofsd-9999.ebuild

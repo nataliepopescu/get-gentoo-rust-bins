@@ -1,6 +1,0 @@
-./gentoo-tree/app-shells/mcfly/mcfly-0.5.13-r1.ebuild
-./gentoo-tree/app-shells/zoxide/zoxide-0.9.4-r1.ebuild
-./gentoo-tree/app-shells/zoxide/zoxide-0.9.6-r1.ebuild
-./gentoo-tree/app-shells/zoxide/zoxide-0.9.7.ebuild
-./gentoo-tree/app-shells/zoxide/zoxide-0.9.8.ebuild
-./gentoo-tree/app-shells/zoxide/zoxide-0.9.9.ebuild

@@ -5,4 +5,5 @@ Sample usage:
 ```sh
 ./scan_dyn_dispatch.sh -p sys-apps
 ./scan_dyn_dispatch.sh -p sys-apps -n 50
+./scan_dyn_dispatch.sh -j 16
 ```

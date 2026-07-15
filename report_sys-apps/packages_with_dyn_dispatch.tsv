@@ -1,21 +1,22 @@
 package	category	distinct_crates_using_dyn	total_dyn_hits	crates
-sys-apps/ripgrep-all-0.10.9-r1	sys-apps	7	67	anstream@0.6.18, aho-corasick@1.1.3, allocator-api2@0.2.21, anstyle@1.0.10, ahash@0.8.11, anstyle-wincon@3.0.7, addr2line@0.24.2
-sys-apps/ripgrep-all-0.10.10	sys-apps	7	67	anstream@0.6.18, aho-corasick@1.1.3, allocator-api2@0.2.21, anstyle@1.0.10, ahash@0.8.11, anstyle-wincon@3.0.7, addr2line@0.24.2
-sys-apps/eza-0.23.4	sys-apps	6	65	anstream@0.6.21, anes@0.1.6, aho-corasick@1.1.3, anstyle@1.0.13, anstyle-wincon@3.0.10, addr2line@0.25.1
-sys-apps/eza-0.23.4-r1	sys-apps	6	65	anstream@0.6.21, anes@0.1.6, aho-corasick@1.1.3, anstyle@1.0.13, anstyle-wincon@3.0.10, addr2line@0.25.1
-sys-apps/bat-0.24.0-r3	sys-apps	6	63	aho-corasick@0.7.19, anstream@0.6.4, aho-corasick@1.0.1, anstyle@1.0.0, anstyle@0.3.5, anstyle-wincon@3.0.1
-sys-apps/lsd-1.2.0	sys-apps	4	50	anstream@0.6.20, aho-corasick@1.1.3, anstyle@1.0.11, anstyle-wincon@3.0.10
-sys-apps/fd-10.4.2	sys-apps	4	50	anstream@0.6.21, aho-corasick@1.1.4, anstyle@1.0.13, anstyle-wincon@3.0.11
-sys-apps/bat-0.26.1-r1	sys-apps	4	50	anstream@0.6.18, aho-corasick@1.1.3, anstyle@1.0.10, anstyle-wincon@3.0.6
-sys-apps/bat-0.25.0-r1	sys-apps	4	50	anstream@0.6.18, aho-corasick@1.1.2, anstyle@1.0.0, anstyle-wincon@3.0.6
+sys-apps/ripgrep-all-0.10.9-r1	sys-apps	15	228	anyhow@1.0.96, async-compression@0.3.15, anstream@0.6.18, async-compression@0.4.19, backtrace@0.3.74, async-trait@0.1.86, aho-corasick@1.1.3, allocator-api2@0.2.21, async-recursion@1.1.1, anstyle@1.0.10, ahash@0.8.11, anstyle-wincon@3.0.7, base64@0.22.1, addr2line@0.24.2, astral-tokio-tar@0.5.1
+sys-apps/ripgrep-all-0.10.10	sys-apps	15	228	anyhow@1.0.96, async-compression@0.3.15, anstream@0.6.18, async-compression@0.4.19, backtrace@0.3.74, async-trait@0.1.86, aho-corasick@1.1.3, allocator-api2@0.2.21, async-recursion@1.1.1, anstyle@1.0.10, ahash@0.8.11, anstyle-wincon@3.0.7, base64@0.22.1, addr2line@0.24.2, astral-tokio-tar@0.5.6
+sys-apps/bat-0.26.1-r1	sys-apps	7	124	anyhow@1.0.97, anstream@0.6.18, assert_cmd@2.0.16, aho-corasick@1.1.3, anstyle@1.0.10, anstyle-wincon@3.0.6, base64@0.22.1
+sys-apps/bat-0.25.0-r1	sys-apps	7	123	anyhow@1.0.86, anstream@0.6.18, assert_cmd@2.0.12, aho-corasick@1.1.2, anstyle@1.0.0, anstyle-wincon@3.0.6, base64@0.22.1
+sys-apps/fd-10.4.2	sys-apps	5	105	anyhow@1.0.102, anstream@0.6.21, aho-corasick@1.1.4, anstyle@1.0.13, anstyle-wincon@3.0.11
+sys-apps/bat-0.24.0-r3	sys-apps	8	83	aho-corasick@0.7.19, assert_cmd@2.0.10, anstream@0.6.4, aho-corasick@1.0.1, anstyle@1.0.0, anstyle@0.3.5, base64@0.21.0, anstyle-wincon@3.0.1
+sys-apps/eza-0.23.4	sys-apps	8	82	anstream@0.6.21, backtrace@0.3.76, anes@0.1.6, aho-corasick@1.1.3, anstyle@1.0.13, anstyle-wincon@3.0.10, base64@0.22.1, addr2line@0.25.1
+sys-apps/eza-0.23.4-r1	sys-apps	8	82	anstream@0.6.21, backtrace@0.3.76, anes@0.1.6, aho-corasick@1.1.3, anstyle@1.0.13, anstyle-wincon@3.0.10, base64@0.22.1, addr2line@0.25.1
+sys-apps/asahi-startup-disk-0.1.3-r1	sys-apps	2	79	anyhow@1.0.75, apple-nvram@0.2.1
+sys-apps/lsd-1.2.0	sys-apps	6	75	anstream@0.6.20, assert_cmd@2.0.14, aho-corasick@1.1.3, assert_fs@1.1.1, anstyle@1.0.11, anstyle-wincon@3.0.10
+sys-apps/ripgrep-15.1.0	sys-apps	2	70	anyhow@1.0.100, aho-corasick@1.1.3
+sys-apps/zram-generator-1.2.1	sys-apps	3	66	anyhow@1.0.94, anstyle@1.0.10, ahash@0.7.8
+sys-apps/uutils-findutils-9999	sys-apps	5	51	assert_cmd@2.0.16, anstream@0.6.12, aho-corasick@1.1.3, anstyle@1.0.8, anstyle-wincon@3.0.1
 sys-apps/asahi-nvram-0.2.4	sys-apps	4	50	anstream@0.6.18, aho-corasick@1.1.3, anstyle@1.0.10, anstyle-wincon@3.0.6
 sys-apps/asahi-bless-0.4.3	sys-apps	4	50	anstream@0.6.18, aho-corasick@1.1.3, anstyle@1.0.10, anstyle-wincon@3.0.6
+sys-apps/zram-generator-1.1.2-r1	sys-apps	2	46	anyhow@1.0.45, ahash@0.4.7
 sys-apps/asahi-nvram-0.2.3	sys-apps	4	42	anstream@0.6.18, anstyle@1.0.10, ahash@0.7.8, anstyle-wincon@3.0.6
 sys-apps/asahi-bless-0.4.1	sys-apps	4	42	anstream@0.6.18, anstyle@1.0.10, ahash@0.7.8, anstyle-wincon@3.0.6
-sys-apps/uutils-findutils-9999	sys-apps	4	35	anstream@0.6.12, aho-corasick@1.1.3, anstyle@1.0.8, anstyle-wincon@3.0.1
-sys-apps/ipmi-fan-control-0.4.0-r1	sys-apps	1	22	aho-corasick@0.7.19
-sys-apps/bat-0.23.0-r3	sys-apps	1	22	aho-corasick@0.7.19
-sys-apps/ripgrep-15.1.0	sys-apps	1	12	aho-corasick@1.1.3
-sys-apps/zram-generator-1.2.1	sys-apps	2	11	anstyle@1.0.10, ahash@0.7.8
+sys-apps/bat-0.23.0-r3	sys-apps	3	40	aho-corasick@0.7.19, assert_cmd@2.0.8, base64@0.13.0
+sys-apps/ipmi-fan-control-0.4.0-r1	sys-apps	2	29	aho-corasick@0.7.19, bindgen@0.60.1
 sys-apps/syd-tui-0.2.2	sys-apps	1	11	allocator-api2@0.2.21
-sys-apps/zram-generator-1.1.2-r1	sys-apps	1	2	ahash@0.4.7
